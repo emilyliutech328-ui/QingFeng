@@ -1,6 +1,6 @@
 [versions]
 
-kotlin = "2.3.10"
+kotlin = "2.3.21"
 # KSP 版本必须与 Kotlin 严格配对：KSP 2.3.x 基于 Kotlin 2.3.x。
 # 原值 2.3.4 与 kotlin 2.3.10 不匹配 —— 本地因 Gradle 缓存里恰好有
 # 2.3.4 的产物而「看起来能用」，但 CI 干净环境下会因插件解析失败报

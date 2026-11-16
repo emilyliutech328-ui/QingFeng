@@ -1368,8 +1368,8 @@
     <string name="edge_tts_custom_ssml_hint">留空使用默认模板</string>
     <string name="edge_tts_ssml_reset">恢复默认</string>
     <string name="carousel_auto_perf">按设备性能自动简化</string>
-    <string name="monet_title">莫奈动态取色</string>
-    <string name="monet_summary">从系统壁纸提取主色，自动生成协调的主题配色</string>
+    <string name="monet_title">莫奈动态取色（Material You）</string>
+    <string name="monet_summary">按 Material Design 3 规范从壁纸提取种子色，经 HCT 色彩空间生成全套语义配色，自动保证可读性</string>
     <string name="monet_apply">立即重新取色</string>
     <string name="monet_apply_summary">壁纸变化后点这里重新生成配色</string>
     <string name="monet_need_enable">请先打开莫奈动态取色</string>

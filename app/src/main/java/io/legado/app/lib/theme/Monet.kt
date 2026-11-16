@@ -10,25 +10,37 @@ import io.legado.app.constant.AppLog
 import io.legado.app.constant.PreferKey
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ThemeConfig
+import io.legado.app.lib.theme.m3.QuantizerCelebi
+import io.legado.app.lib.theme.m3.Score
+import io.legado.app.lib.theme.m3.Scheme as M3Scheme
+import io.legado.app.lib.theme.m3.TonalPalette
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.printOnDebug
 import java.io.File
 
 /**
- * 莫奈（Monet）动态取色。
+ * 莫奈（Monet）动态取色 —— Material You / Material Design 3 引擎。
  *
- * 思路对齐 Material You：不直接取「出现最多的颜色」（那通常发灰），
- * 而是把图片降采样后做量化统计，挑一个饱和度和明度都落在可用区间的
- * 主色，再按主题明暗做 HSL 校正，生成主色/深色/强调色/背景色四件套。
+ * 2026-11 重构：算法从「HSV 逐桶打分 + HSL 校正出 4 色」升级为
+ * Google material-color-utilities 官方流水线（初版 2021/2022 规范，Apache-2.0）：
  *
- * 实现上不依赖 androidx.palette，避免为一个功能额外加库；
- * 用的是缩小采样 + 桶统计，几十万像素的图也只要几毫秒。
+ *   壁纸/图片 → 降采样 → QuantizerCelebi 量化(128 色)
+ *             → Score 官方打分选种子色
+ *             → Hct(CAM16 感知均匀色彩空间) → TonalPalette 色调调色板
+ *             → Scheme 生成 27 个语义色 token（primary/onPrimary/container/
+ *               surface/outline/inverse…，明暗两套自动保证对比度）
+ *
+ * 与旧实现的差别：
+ * - HCT 取代 HSV：色度/明度在感知均匀的空间里选取，产物更接近系统 Material You
+ * - tone 档位固定（primary=40/80，container=90/30 等），任何种子色都能保证可读性
+ * - 完整 [M3Scheme] 缓存在 [lastScheme]，新界面可直接取 container/outline 等 token
  */
 object Monet {
 
     @ColorInt
     private val FALLBACK_PRIMARY = Color.parseColor("#455A64")
 
+    /** 与旧版兼容的 4 色结果（primaryDark/accent 是对 M3 token 的映射） */
     data class Scheme(
         @ColorInt val primary: Int,
         @ColorInt val primaryDark: Int,
@@ -36,13 +48,17 @@ object Monet {
         @ColorInt val background: Int
     )
 
+    /** 最近一次生成的 M3 完整配色（供新界面取 container/outline 等 token） */
+    var lastScheme: M3Scheme? = null
+        private set
+
     /** 取色统计的采样边长（采样 96x96 ≈ 9000 像素，足够稳定） */
     private const val SAMPLE_SIZE = 96
 
-    /** 颜色桶的量化位数：每通道保留 4 位，共 4096 桶 */
-    private const val QUANT_SHIFT = 4
+    /** QuantizerCelebi 的目标色数（M3 官方壁纸流程同款参数） */
+    private const val MAX_COLORS = 128
 
-    fun fromWallpaper(context: Context): Scheme? {
+    fun fromWallpaper(context: Context): M3Scheme? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return null
         return runCatching {
             val manager = WallpaperManager.getInstance(context)
@@ -56,7 +72,7 @@ object Monet {
         }.getOrNull()
     }
 
-    fun fromImage(path: String): Scheme? = runCatching {
+    fun fromImage(path: String): M3Scheme? = runCatching {
         val file = File(path)
         if (!file.exists()) return null
         val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = false }
@@ -67,89 +83,63 @@ object Monet {
     }.onFailure { it.printOnDebug() }.getOrNull()
 
     /**
-     * 从 Bitmap 提炼配色
+     * 从 Bitmap 提炼配色：M3 官方流水线
      */
-    fun fromBitmap(source: Bitmap): Scheme? {
+    fun fromBitmap(source: Bitmap): M3Scheme? {
         if (source.width <= 0 || source.height <= 0) return null
         val sampled = scaleDown(source, SAMPLE_SIZE)
-        val seed = runCatching { dominantSeed(sampled) }.getOrNull() ?: FALLBACK_PRIMARY
+        val pixels = IntArray(sampled.width * sampled.height)
+        sampled.getPixels(pixels, 0, sampled.width, 0, 0, sampled.width, sampled.height)
         if (sampled !== source) sampled.recycleSafely()
 
+        val seed = runCatching { officialSeed(pixels) }.getOrNull()
+            ?: FALLBACK_PRIMARY
+        return schemeOf(seed)
+    }
+
+    /** 任意种子色 → M3 完整配色（公开给自定义主题/新 UI 使用） */
+    fun schemeOf(@ColorInt seed: Int): M3Scheme {
         val dark = isDarkTheme()
-        val primary = tune(seed, dark, darker = false)
-        val primaryDark = tune(seed, dark, darker = true)
-        val accent = adjustHue(seed, 24f, if (dark) 0.85f else 0.75f)
-        val background = if (dark) mix(primary, Color.BLACK, 0.82f)
-        else mix(primary, Color.WHITE, 0.88f)
-        return Scheme(primary, primaryDark, accent, background)
+        val s = if (dark) M3Scheme.dark(seed) else M3Scheme.light(seed)
+        lastScheme = s
+        return s
     }
 
     /**
-     * 主色种子：按「饱和度加权 + 明度可用」打分，取最高分的桶平均色。
-     * 近黑/近白/低饱和的像素基本不参与，避免选出灰底。
+     * M3 官方种子选择：QuantizerCelebi 量化 + Score 打分。
+     * Score 会过滤近黑/近白/低饱和，并倾向「既足够饱和又不太扎眼」的颜色，
+     * 与系统 Material You 从壁纸选种子的行为一致。
      */
-    private fun dominantSeed(bitmap: Bitmap): Int {
-        val w = bitmap.width
-        val h = bitmap.height
-        val pixels = IntArray(w * h)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+    @ColorInt
+    private fun officialSeed(pixels: IntArray): Int {
+        // QuantizerCelebi 直接返回 Map<像素色, 计数>；Score 挑出适合做种子的候选
+        val colorToCount = QuantizerCelebi.quantize(pixels, MAX_COLORS)
+        val ranked = Score.score(colorToCount)
+        return ranked.firstOrNull() ?: FALLBACK_PRIMARY
+    }
 
-        val counts = IntArray(1 shl (3 * QUANT_SHIFT))
-        val sumR = IntArray(counts.size)
-        val sumG = IntArray(counts.size)
-        val sumB = IntArray(counts.size)
-
-        for (pixel in pixels) {
-            val a = Color.alpha(pixel)
-            if (a < 128) continue
-            val r = Color.red(pixel)
-            val g = Color.green(pixel)
-            val b = Color.blue(pixel)
-            val hsv = FloatArray(3)
-            Color.RGBToHSV(r, g, b, hsv)
-            // 排除极端明度与低饱和
-            if (hsv[2] < 0.12f || hsv[2] > 0.94f) continue
-            if (hsv[1] < 0.12f) continue
-            val key = ((r shr QUANT_SHIFT) shl (2 * QUANT_SHIFT)) or
-                    ((g shr QUANT_SHIFT) shl QUANT_SHIFT) or
-                    (b shr QUANT_SHIFT)
-            counts[key]++
-            sumR[key] += r
-            sumG[key] += g
-            sumB[key] += b
-        }
-
-        var bestKey = -1
-        var bestScore = 0.0
-        for (key in counts.indices) {
-            val count = counts[key]
-            if (count <= 0) continue
-            val r = sumR[key] / count
-            val g = sumG[key] / count
-            val b = sumB[key] / count
-            val hsv = FloatArray(3)
-            Color.RGBToHSV(r, g, b, hsv)
-            // 分数：像素数 x 饱和度权重 x 明度居中性
-            val midness = 1f - kotlin.math.abs(hsv[2] - 0.55f) / 0.55f
-            val score = count.toDouble() * (0.35 + hsv[1]) * (0.5 + midness.coerceAtLeast(0f))
-            if (score > bestScore) {
-                bestScore = score
-                bestKey = key
-            }
-        }
-        if (bestKey < 0) return FALLBACK_PRIMARY
-        val count = counts[bestKey]
-        return Color.rgb(sumR[bestKey] / count, sumG[bestKey] / count, sumB[bestKey] / count)
+    /** 从 HCT 直接取 tone 档（供状态栏等「同色相、固定明度」场景） */
+    @ColorInt
+    fun tone(@ColorInt seed: Int, tone: Int): Int {
+        return runCatching { TonalPalette.fromInt(seed).tone(tone) }
+            .getOrDefault(seed)
     }
 
     /**
      * 应用配色到全局主题（写入后立即提交）
+     *
+     * token 映射：
+     * - primary        ← M3 primary（tone 40/80，保证对 surface 可读）
+     * - primaryDark    ← primary 色相 tone 30（状态栏/深色工具栏，沿用旧语义）
+     * - accent         ← M3 tertiary（色相自动偏移的对比强调色）
+     * - background     ← M3 background
      */
-    fun apply(context: Context, scheme: Scheme) {
+    fun apply(context: Context, scheme: M3Scheme) {
+        val seedDark = tone(scheme.primary, 30)
         ThemeStore.editTheme(context)
             .primaryColor(scheme.primary)
-            .primaryColorDark(scheme.primaryDark)
-            .accentColor(scheme.accent)
+            .primaryColorDark(seedDark)
+            .accentColor(scheme.tertiary)
             .backgroundColor(scheme.background)
             .apply()
     }
@@ -207,40 +197,6 @@ object Monet {
             true
         )
         return if (scaled === source) source else scaled
-    }
-
-    /**
-     * 校正种子色：主色要可读（不太亮也不糊），暗色主题压暗、亮色主题提亮。
-     */
-    @ColorInt
-    private fun tune(@ColorInt color: Int, dark: Boolean, darker: Boolean): Int {
-        val hsv = FloatArray(3)
-        Color.colorToHSV(color, hsv)
-        hsv[1] = hsv[1].coerceIn(0.35f, 0.75f)
-        hsv[2] = when {
-            darker -> if (dark) 0.32f else 0.45f
-            dark -> 0.55f
-            else -> 0.72f
-        }
-        return Color.HSVToColor(hsv)
-    }
-
-    /** 色相偏移 + 调饱和，得到协调的强调色 */
-    @ColorInt
-    private fun adjustHue(@ColorInt color: Int, delta: Float, saturate: Float): Int {
-        val hsv = FloatArray(3)
-        Color.colorToHSV(color, hsv)
-        hsv[0] = (hsv[0] + delta).mod(360f)
-        hsv[1] = (hsv[1] * saturate).coerceIn(0.3f, 0.85f)
-        hsv[2] = hsv[2].coerceIn(0.45f, 0.85f)
-        return Color.HSVToColor(hsv)
-    }
-
-    private fun mix(@ColorInt a: Int, @ColorInt b: Int, ratio: Float): Int {
-        val r = (Color.red(a) * (1 - ratio) + Color.red(b) * ratio).toInt()
-        val g = (Color.green(a) * (1 - ratio) + Color.green(b) * ratio).toInt()
-        val bl = (Color.blue(a) * (1 - ratio) + Color.blue(b) * ratio).toInt()
-        return Color.rgb(r, g, bl)
     }
 
     private fun android.graphics.drawable.Drawable.toBitmap(): Bitmap? {

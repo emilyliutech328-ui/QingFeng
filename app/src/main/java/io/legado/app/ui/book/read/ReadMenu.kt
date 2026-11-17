@@ -207,7 +207,7 @@ class ReadMenu @JvmOverloads constructor(
         } else {
             llBottomBg.setBackgroundColor(bgColor)
         }
-        // 玻璃拟态：给底部面板换成半透明+模糊的玻璃底（墨水屏不启用）
+        // 玻璃拟态：给底部面板换成半透明磨砂玻璃底（墨水屏不启用）
         if (!AppConfig.isEInkMode && AppConfig.glassUiEnabled) {
             GlassUi.apply(
                 llBottomBg,

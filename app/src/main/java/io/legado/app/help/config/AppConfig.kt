@@ -882,7 +882,7 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefBoolean(PreferKey.bookshelfCarouselAutoPerf, value)
         }
 
-    /** 玻璃拟态（模糊/半透明面板）开关 */
+    /** 玻璃拟态（半透明磨砂面板）开关 */
     var glassUiEnabled
         get() = appCtx.getPrefBoolean(PreferKey.glassUi, true)
         set(value) {

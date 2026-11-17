@@ -1244,7 +1244,7 @@
     <string name="monet_applied">已依桌布更新配色</string>
     <string name="monet_failed">取色失敗，可能沒有可用的桌布或背景圖</string>
     <string name="glass_ui_title">玻璃擬態</string>
-    <string name="glass_ui_summary">半透明與模糊面板；低規裝置會自動關閉模糊</string>
+    <string name="glass_ui_summary">面板呈半透明磨砂玻璃質感，透出背後閱讀內容</string>
     <string name="rss_guide_title">訂閱與收藏 · 使用說明</string>
     <string name="rss_guide_expand">展開</string>
     <string name="rss_guide_collapse">收起</string>

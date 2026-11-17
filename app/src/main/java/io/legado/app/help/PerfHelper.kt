@@ -2,7 +2,6 @@ package io.legado.app.help
 
 import android.app.ActivityManager
 import android.content.Context
-import android.os.Build
 import io.legado.app.help.config.AppConfig
 import splitties.systemservices.activityManager
 
@@ -19,10 +18,10 @@ import splitties.systemservices.activityManager
  *  - Android 版本（过低版本对 RenderEffect/Blur 支持差）
  */
 enum class PerfTier {
-    /** 低端：关闭 3D 轮播、玻璃模糊，仅保留基础动效 */
+    /** 低端：关闭 3D 轮播，仅保留基础动效 */
     Low,
 
-    /** 中端：保留轮播但降采样、缩短动画，模糊可开 */
+    /** 中端：保留轮播但降采样、缩短动画 */
     Medium,
 
     /** 高端：全效果 */
@@ -88,17 +87,19 @@ object PerfHelper {
         return tier() != PerfTier.High
     }
 
-    /** 玻璃拟态是否可用（低端机关闭模糊，只保留半透明） */
-    fun glassBlurSupported(): Boolean {
-        if (!AppConfig.glassUiEnabled) return false
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
-        return tier() != PerfTier.Low
-    }
+    /**
+     * 玻璃拟态是否可用。
+     *
+     * 2026-11-17：实现已改为纯「半透明+高光渐变」（不再使用 RenderEffect），
+     * 全版本零额外开销，因此不再要求 Android 12+，也不再按性能档位降级——
+     * 用户开关即最终开关。保留函数以兼容调用点。
+     */
+    fun glassBlurSupported(): Boolean = AppConfig.glassUiEnabled
 
-    /** 玻璃效果总开关（用户开关 + 设备支持），供 GlassUi 使用 */
+    /** 玻璃效果总开关（用户开关），供 GlassUi 使用 */
     fun glassUiEnabled(): Boolean = glassBlurSupported()
 
-    /** 是否高端设备（决定模糊半径、动效时长等） */
+    /** 是否高端设备（决定动效时长等；玻璃效果自 2026-11 起不再依赖档位） */
     fun isHighTier(): Boolean = tier() == PerfTier.High
 
     /** 供设置页展示的档位描述 */

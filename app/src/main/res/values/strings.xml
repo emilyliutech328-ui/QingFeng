@@ -1376,7 +1376,7 @@
     <string name="monet_applied">已按壁纸更新配色</string>
     <string name="monet_failed">取色失败，可能没有可用的壁纸或背景图</string>
     <string name="glass_ui_title">玻璃拟态</string>
-    <string name="glass_ui_summary">半透明与模糊面板；低配设备会自动关闭模糊</string>
+    <string name="glass_ui_summary">面板呈半透明磨砂玻璃质感，透出背后阅读内容</string>
     <string name="rss_guide_title">订阅与收藏 · 使用说明</string>
     <string name="rss_guide_expand">展开</string>
     <string name="rss_guide_collapse">收起</string>

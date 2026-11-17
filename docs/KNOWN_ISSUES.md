@@ -34,12 +34,6 @@
 
 ### P3 · 功能增强（可选）
 
-#### 封面生成版式改良
-- **状态**：设计已完成，见 `docs/DESIGN/03-封面生成设计.md`，未实施。
-- **规划**：横排自适应 + 边框纹理 + 8 种图案（game-icons.net CC BY 3.0 + Lucide ISC，
-  需转 VectorDrawable 并附 `assets/cover_motifs/LICENSE.md`）+ 20 个占位作者。
-- **已决策**：不提取副标题、占位作者不加提示、保留旧竖排版式。
-
 #### 玻璃拟态覆盖范围
 - **现状**：只做了阅读菜单（`ReadMenu.kt:212/218`）。
 - **待定**：是否铺到书架 / 发现页 / 对话框（需动大量布局）。
@@ -131,6 +125,24 @@ themeConfig.json 用的是色值不是资源名、无需改动）。
 不再每个关键词堆一条「搜索url不能为空」。书源校验与单源自搜
 （`SourceVerificationService` / `BookSourceDebug`）保留报错——那是故意测试
 搜索接口，必须如实报告不可用。
+
+### 封面生成版式改良（六步全部实施）
+✅ 已解决（2026-11-17）：新建 `model/cover/` 六件套
+（CoverStyle/CoverLayout/CoverGenerator/CoverBorder+CoverTexture/CoverMotif/CoverAuthorPool），
+`CoverImageView` 改为调用 `CoverGenerator`。
+- 横排自适应：字号试算（0.185w 起 ×0.92 递减，下限 0.072w，≤3 行+省略号），
+  中英/西里尔按词切、标点避头；竖排旧版式原样保留可切
+- 双线边框 + 四角 L 形装饰（小封面只画细边框）
+- 8 种自绘矢量图案（藤蔓/同心圆/星月/波纹/方菱/书页扇/剑锋/魔法阵），
+  FNV-1a 书名哈希确定性选型，宽 <120px 不画
+- 20 个占位作者，同哈希族确定性分配，只用于封面显示不入库
+- 纹理三档（细网格/网点/无），网点用书名种子 LCG 保证确定性
+- 缓存从「33 张」改为按字节上限 maxMemory/8 + sizeOf=byteCount；
+  key 加入 styleHash，改配置开关不命中旧图
+- 配置页新增「封面生成」分类（版式/纹理/图案/占位作者/边框）
+- 验证：CoverLayoutTest 5 项 + CoverRenderTest 离屏样图（Robolectric NATIVE）
+- ⚠️ game-icons.net 扩展集（设计 5.4 节）未接入，署名文件未建；
+  当前 8 种自绘图案零授权负担，扩展集留待后续
 
 ### 莫奈取色升级为 Material You / M3 官方引擎
 ✅ commit `b654642`（CI 通过，未发版）：引入 material-color-utilities

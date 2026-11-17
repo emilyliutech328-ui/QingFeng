@@ -916,7 +916,15 @@
     <string name="cover_show_name">show name</string>
     <string name="cover_show_name_summary">Book title shown on cover</string>
     <string name="cover_show_author">show author</string>
+    <string name="cover_gen_category">cover generation</string>
     <string name="cover_show_author_summary">Author shown on cover</string>
+    <string name="cover_layout">cover layout</string>
+    <string name="cover_texture">cover texture</string>
+    <string name="cover_motif">cover motif</string>
+    <string name="cover_fallback_author">placeholder author name</string>
+    <string name="cover_fallback_author_summary">Use a placeholder pen name when the book has no author</string>
+    <string name="cover_border">cover border</string>
+    <string name="cover_border_summary">Double-line frame with corner accents</string>
     <string name="read_aloud_prev_paragraph">Read aloud the previous paragraph</string>
     <string name="read_aloud_next_paragraph">Read aloud the next paragraph</string>
     <string name="wait_download">wait download</string>

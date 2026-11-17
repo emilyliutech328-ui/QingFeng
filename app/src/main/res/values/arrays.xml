@@ -27,6 +27,34 @@
 		<item>视频</item>
 	</string-array>
 
+	<!-- 封面生成：版式 / 纹理 / 图案 -->
+	<string-array name="coverLayoutNames">
+		<item>横排</item>
+		<item>竖排</item>
+	</string-array>
+	<string-array name="coverLayoutValues">
+		<item>0</item>
+		<item>1</item>
+	</string-array>
+	<string-array name="coverTextureNames">
+		<item>细网格</item>
+		<item>网点</item>
+		<item>无</item>
+	</string-array>
+	<string-array name="coverTextureValues">
+		<item>0</item>
+		<item>1</item>
+		<item>2</item>
+	</string-array>
+	<string-array name="coverMotifNames">
+		<item>按书名</item>
+		<item>关闭</item>
+	</string-array>
+	<string-array name="coverMotifValues">
+		<item>0</item>
+		<item>1</item>
+	</string-array>
+
 	<string-array name="group_style">
 		<item>Tab</item>
 		<item>Folder</item>

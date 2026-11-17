@@ -229,4 +229,11 @@ object PreferKey {
 
     // ===== 订阅（RSS）使用说明折叠状态 =====
     const val rssGuideExpanded = "rssGuideExpanded"
+
+    // ===== 封面生成（版式/纹理/图案/作者兜底/边框） =====
+    const val coverLayout = "coverLayout"
+    const val coverTexture = "coverTexture"
+    const val coverMotif = "coverMotif"
+    const val coverFallbackAuthor = "coverFallbackAuthor"
+    const val coverBorder = "coverBorder"
 }

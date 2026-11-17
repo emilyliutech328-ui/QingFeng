@@ -1259,6 +1259,14 @@
     <string name="monet_failed">取色失败，可能没有可用的壁纸或背景图</string>
     <string name="glass_ui_title">玻璃拟态</string>
     <string name="glass_ui_summary">面板呈半透明磨砂玻璃质感，透出背后阅读内容</string>
+    <string name="cover_gen_category">封面生成</string>
+    <string name="cover_layout">封面版式</string>
+    <string name="cover_texture">封面纹理</string>
+    <string name="cover_motif">封面图案</string>
+    <string name="cover_fallback_author">无作者时用占位名</string>
+    <string name="cover_fallback_author_summary">书籍没有作者信息时，封面右下角显示一个占位笔名</string>
+    <string name="cover_border">封面边框</string>
+    <string name="cover_border_summary">双线边框与四角装饰</string>
     <string name="rss_guide_title">订阅与收藏 · 使用说明</string>
     <string name="rss_guide_expand">展开</string>
     <string name="rss_guide_collapse">收起</string>

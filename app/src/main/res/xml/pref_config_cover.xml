@@ -95,4 +95,53 @@
 
     </io.legado.app.lib.prefs.PreferenceCategory>
 
+    <io.legado.app.lib.prefs.PreferenceCategory
+        android:key="coverGenCategory"
+        android:title="@string/cover_gen_category"
+        app:allowDividerAbove="true"
+        app:allowDividerBelow="false"
+        app:iconSpaceReserved="false"
+        app:layout="@layout/view_preference_category">
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="0"
+            android:key="coverLayout"
+            android:title="@string/cover_layout"
+            app:entries="@array/coverLayoutNames"
+            app:entryValues="@array/coverLayoutValues" />
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="0"
+            android:key="coverTexture"
+            android:title="@string/cover_texture"
+            app:entries="@array/coverTextureNames"
+            app:entryValues="@array/coverTextureValues" />
+
+        <io.legado.app.lib.prefs.NameListPreference
+            android:defaultValue="0"
+            android:key="coverMotif"
+            android:title="@string/cover_motif"
+            app:entries="@array/coverMotifNames"
+            app:entryValues="@array/coverMotifValues" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="true"
+            android:key="coverFallbackAuthor"
+            android:title="@string/cover_fallback_author"
+            android:summary="@string/cover_fallback_author_summary"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+        <io.legado.app.lib.prefs.SwitchPreference
+            android:defaultValue="true"
+            android:key="coverBorder"
+            android:title="@string/cover_border"
+            android:summary="@string/cover_border_summary"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
+    </io.legado.app.lib.prefs.PreferenceCategory>
+
 </androidx.preference.PreferenceScreen>

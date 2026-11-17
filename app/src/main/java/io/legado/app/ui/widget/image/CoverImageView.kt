@@ -4,10 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Outline
-import android.graphics.Paint
-import android.graphics.Typeface
 import android.graphics.drawable.Drawable
-import android.text.TextPaint
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
@@ -25,11 +22,11 @@ import io.legado.app.help.glide.ImageLoader
 import io.legado.app.help.glide.OkHttpModelLoader
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.model.BookCover
-import io.legado.app.utils.textHeight
-import io.legado.app.utils.toStringArray
+import io.legado.app.model.cover.CoverGenerator
+import io.legado.app.model.cover.CoverLayout
+import io.legado.app.model.cover.CoverStyle
 import android.view.ViewOutlineProvider
 import androidx.collection.LruCache
-import androidx.core.graphics.createBitmap
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.SearchBook
 import io.legado.app.lib.theme.backgroundColor
@@ -53,7 +50,23 @@ class CoverImageView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : AppCompatImageView(context, attrs) {
     companion object {
-        private val nameBitmapCache by lazy { LruCache<String, Bitmap>(33) }
+        /**
+         * 封面位图缓存：按字节计上限（maxMemory/8），
+         * 取代旧的「33 张」条目数上限（300x400 ARGB 单张 480KB，
+         * 33 张 ≈15.8MB 且随尺寸浮动不可控）。
+         */
+        private val nameBitmapCache by lazy {
+            val maxMem = runCatching {
+                val am = appCtx.getSystemService(Context.ACTIVITY_SERVICE)
+                        as android.app.ActivityManager
+                val info = android.app.ActivityManager.MemoryInfo()
+                am.getMemoryInfo(info)
+                (info.totalMem / 8).toInt()
+            }.getOrDefault(24 * 1024 * 1024) // 兜底 24MB
+            object : LruCache<String, Bitmap>(maxMem) {
+                override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+            }
+        }
         private val needNameBitmap by lazy { LruCache<String, Boolean>(99) }
     }
     private var viewWidth: Float = 0f
@@ -111,7 +124,7 @@ class CoverImageView @JvmOverloads constructor(
             } else {
                 currentName
             }
-            val cacheBitmap =  nameBitmapCache[pathName + width]
+            val cacheBitmap = nameBitmapCache[cacheKey(pathName)]
             if (cacheBitmap != null) {
                 canvas.drawBitmap(cacheBitmap, 0f, 0f, null)
                 return
@@ -144,7 +157,7 @@ class CoverImageView @JvmOverloads constructor(
                 val bitmap = generateCoverBitmap(name, author)
                 ensureActive()
                 needNameBitmap.put(bitmapPath.toString(), true)
-                nameBitmapCache.put(pathName + width, bitmap)
+                nameBitmapCache.put(cacheKey(pathName), bitmap)
                 invalidate()
             } catch (_: CancellationException) {
             } catch (e: Exception) {
@@ -153,77 +166,19 @@ class CoverImageView @JvmOverloads constructor(
         }
     }
 
+    /** 缓存 key：内容 + 尺寸 + 版式配置指纹（改开关不命中旧缓存） */
+    private fun cacheKey(pathName: String): String =
+        "$pathName|$width|${CoverStyle.styleHash}"
+
     private fun generateCoverBitmap(name: String?, author: String?): Bitmap {
         viewWidth = width.toFloat()
         viewHeight = height.toFloat()
-        val bitmap = createBitmap(width, height)
-        val bitmapCanvas = Canvas(bitmap)
-        var startX = width * 0.2f
-        var startY = viewHeight * 0.2f
-        val backgroundColor = appCtx.backgroundColor
-        val accentColor = appCtx.accentColor
-        val namePaint = TextPaint().apply {
-            typeface = Typeface.DEFAULT_BOLD
-            isAntiAlias = true
-            textAlign = Paint.Align.CENTER
+        // 小封面（书架列表项）走简版：只画标题 + 细边框
+        return if (CoverLayout.isSmall(viewWidth)) {
+            CoverGenerator.simple(name, author, width, height, drawBookAuthor)
+        } else {
+            CoverGenerator.generate(name, author, width, height, drawBookAuthor)
         }
-        name?.toStringArray()?.let { name ->
-            var line = 0
-            namePaint.textSize = viewWidth / 7
-            namePaint.strokeWidth = namePaint.textSize / 6
-            name.forEachIndexed { index, char ->
-                namePaint.color = backgroundColor
-                namePaint.style = Paint.Style.STROKE
-                bitmapCanvas.drawText(char, startX, startY, namePaint)
-                namePaint.color = accentColor
-                namePaint.style = Paint.Style.FILL
-                bitmapCanvas.drawText(char, startX, startY, namePaint)
-                startY += namePaint.textHeight
-                if (startY > viewHeight * 0.9) {
-                    if ((name.size - index - 1) == 1) { //只剩一个字
-                        startY -= namePaint.textHeight / 5
-                        namePaint.textSize = viewWidth / 9
-                        return@forEachIndexed
-                    }
-                    startX += namePaint.textSize
-                    line++
-                    namePaint.textSize = viewWidth / 10
-                    startY = viewHeight * 0.2f + namePaint.textHeight * line
-                }
-                else if (startY > viewHeight * 0.8 && (name.size - index - 1) > 2) { //剩余字数大于2
-                    startX += namePaint.textSize
-                    line++
-                    namePaint.textSize = viewWidth / 10
-                    startY = viewHeight * 0.2f + namePaint.textHeight * line
-                }
-            }
-        }
-        if (!drawBookAuthor){
-            return bitmap
-        }
-        val authorPaint = TextPaint(namePaint).apply {
-            typeface = Typeface.DEFAULT
-        }
-        author?.toStringArray()?.let { author ->
-            authorPaint.textSize = viewWidth / 10
-            authorPaint.strokeWidth = authorPaint.textSize / 5
-            startX = width * 0.8f
-            startY = viewHeight * 0.95f - author.size * authorPaint.textHeight
-            startY = maxOf(startY, viewHeight * 0.3f)
-            author.forEach {
-                authorPaint.color = backgroundColor
-                authorPaint.style = Paint.Style.STROKE
-                bitmapCanvas.drawText(it, startX, startY, authorPaint)
-                authorPaint.color = accentColor
-                authorPaint.style = Paint.Style.FILL
-                bitmapCanvas.drawText(it, startX, startY, authorPaint)
-                startY += authorPaint.textHeight
-                if (startY > viewHeight * 0.95) {
-                    return@let
-                }
-            }
-        }
-        return bitmap
     }
 
     fun setHeight(height: Int) {

@@ -7,8 +7,8 @@
 
 | 项 | 状态 |
 |---|---|
-| 最新提交 | `8937d05`（dependabot 关闭自动 PR），main 已同步远端 |
-| 最新发版 | v1.0.2（2026-10-27）；**v1.0.2 之后有 2 个提交未发版**：`b654642` M3 取色引擎、`8937d05` dependabot |
+| 最新提交 | `034cbee`（玻璃 P0 修复），main 已同步远端 |
+| 最新发版 | v1.0.2（2026-10-27）；v1.0.3 发布中（M3 引擎/dependabot/玻璃修复/web 白名单） |
 | CI | 通过（最近一次 5m35s，含 M3 引擎） |
 | 开放 PR / 分支 | 0 / 仅 main |
 
@@ -18,18 +18,7 @@
 
 ### P0 · 影响正常使用
 
-#### 玻璃拟态把面板内容一起模糊（文字/按钮糊掉）
-- **现象**：Android 12+ 开启玻璃拟态后，阅读菜单底部面板里的**图标和文字一起被模糊**，
-  只剩「玻璃感」却看不清内容。
-- **根因**（`lib/theme/GlassUi.kt:54`）：`view.setRenderEffect(createBlurEffect(...))`
-  作用于面板容器时，RenderEffect 会模糊**该 View 及其整个子树**，而不是「面板背后的内容」。
-  这是 API 语义决定的，当前代码无法通过调参数解决。
-- **可选修复**（需选型，见下）：
-  1. **去掉 RenderEffect，只留半透明+渐变高光**（现状已具备，改动最小，视觉降级但正确）
-  2. 截图背景区域 → 模糊 → 作为面板背景 Drawable（滚动时开销大，低配设备不适合）
-  3. Android 12 的 `WallpaperManager.getScaledWallpaperHint`/无窗口级 API；
-     Android 15+ 的 `setBlurBehindParameters`（需 window flag，覆盖面窄）
-- **建议**：先做方案 1 止血（一次提交），方案 2/3 作为增强另议。
+*(暂无)*
 
 ### P1 · 品牌一致性（收尾）
 
@@ -68,25 +57,13 @@
 - **待定**：是否铺到书架 / 发现页 / 对话框（需动大量布局）。
 - **依赖**：建议先解决 P0 的子树模糊 bug，再谈扩展。
 
-### P4 · 工程与环境（未提交的本地改动）
+### P4 · 工程与环境
 
-#### web 模块 pnpm 12 构建白名单（本地待提交）
-- **背景**：pnpm 10+ 默认拒绝依赖运行 install 脚本，`ERR_PNPM_IGNORED_BUILDS`
-  导致 esbuild 装不上、网页版起不来。已在 `modules/web/pnpm-workspace.yaml`
-  用新格式 `allowBuilds:` 修复（注意 pnpm 10 的 `onlyBuiltDependencies` 写法已失效）。
-- **待办**：
-  1. `package.json` 里我加的 `"pnpm": {"onlyBuiltDependencies": [...]}` 字段
-     **对 pnpm 12 无效**，应删除（保留 workspace 文件即可）。
-  2. 决定 `pnpm-lock.yaml`（118.9 KB，此前未入库）是否提交——建议提交，
-     保证可复现构建。
-  3. 提交后在 README/BUILD.md 补一句 web 模块需要 pnpm ≥ 10 及 workspace 文件的作用。
+*(web 构建白名单已解决，见「已解决」区)*
 
 ### P5 · 发版
 
-#### v1.0.3（M3 取色引擎）待发布
-- `b654642`（M3 引擎）+ `8937d05`（dependabot）已在 main 且 CI 通过，尚未发版。
-- 建议连同 P0 玻璃修复、P4 web 环境一起打包成 v1.0.3，一条 tag 触发 CI 自动签名发布。
-- ⚠️ 发版前确认密钥库备份（见 `docs/BUILD.md`「密钥库备份」）。
+*(进行中：v1.0.3 正在发布，含 M3 引擎/dependabot/玻璃修复/web 白名单)*
 
 ---
 
@@ -142,6 +119,18 @@ adaptive 三层 + 五档密度，内容自动测量收进 66dp 安全区（余�
 新增入口（管理页右上角菜单「添加订阅源」+ 三种导入）、
 条目操作（开关/✎编辑/⋮置顶置底删除，无长按菜单）、
 排查走编辑页「调试」（RSS 无校验）。保留已核实的 `group:` 过滤与星标收藏。
+
+### 玻璃拟态把面板内容一起模糊（文字/按钮糊掉）
+✅ commit `034cbee`（v1.0.3）：根因是 `setRenderEffect(createBlurEffect)` 模糊的是
+「该 View 及其整个子树」而非背后内容。修复：去掉 RenderEffect，玻璃感改由
+半透明底色透出 + 顶部高光渐变 + 1px 描边的纯视觉近似实现（全版本一致、零开销）；
+`PerfHelper.glassBlurSupported()` 不再要求 12+/非低端；四语言设置文案同步去掉「模糊」。
+截图模糊 / Android 15 窗口级模糊作为后续增强另议。
+
+### web 模块 pnpm 12 构建白名单
+✅ commit `2cceb98`（v1.0.3）：`pnpm-workspace.yaml` 用 `allowBuilds:` map 修复
+`ERR_PNPM_IGNORED_BUILDS`（pnpm 10 的 `onlyBuiltDependencies` 写法在 12 已失效）；
+package.json 无效字段已删（回到原状）；pnpm-lock.yaml 入库保证可复现。
 
 ### 莫奈取色升级为 Material You / M3 官方引擎
 ✅ commit `b654642`（CI 通过，未发版）：引入 material-color-utilities

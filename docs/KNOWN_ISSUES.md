@@ -1,146 +1,176 @@
 # 问题与待办记录
 
 > 用法：新问题往下追加；改完移到「已解决」并注明 commit。
-> 最后更新：2026-10-27
+> 最后更新：2026-11-17
+
+## 当前基线
+
+| 项 | 状态 |
+|---|---|
+| 最新提交 | `8937d05`（dependabot 关闭自动 PR），main 已同步远端 |
+| 最新发版 | v1.0.2（2026-10-27）；**v1.0.2 之后有 2 个提交未发版**：`b654642` M3 取色引擎、`8937d05` dependabot |
+| CI | 通过（最近一次 5m35s，含 M3 引擎） |
+| 开放 PR / 分支 | 0 / 仅 main |
 
 ---
 
-## 一、已解决
+## 一、待处理
 
-### 立体书架底部虚线区与书底距离偏近
-**状态**：✅ 已修复（commit `23d7c69`）
+### P0 · 影响正常使用
 
-- 原状：书底 `baseline = shelfBottom - 6dp`，虚线框顶在 `shelfBottom + 8dp`，
-  间距仅 **14dp**，视觉发挤。
-- 修复：`baseline` 改为 `shelfBottom - 13dp`，间距增至 **21dp**
-  （≈14sp 字号的一半高度）。
+#### 玻璃拟态把面板内容一起模糊（文字/按钮糊掉）
+- **现象**：Android 12+ 开启玻璃拟态后，阅读菜单底部面板里的**图标和文字一起被模糊**，
+  只剩「玻璃感」却看不清内容。
+- **根因**（`lib/theme/GlassUi.kt:54`）：`view.setRenderEffect(createBlurEffect(...))`
+  作用于面板容器时，RenderEffect 会模糊**该 View 及其整个子树**，而不是「面板背后的内容」。
+  这是 API 语义决定的，当前代码无法通过调参数解决。
+- **可选修复**（需选型，见下）：
+  1. **去掉 RenderEffect，只留半透明+渐变高光**（现状已具备，改动最小，视觉降级但正确）
+  2. 截图背景区域 → 模糊 → 作为面板背景 Drawable（滚动时开销大，低配设备不适合）
+  3. Android 12 的 `WallpaperManager.getScaledWallpaperHint`/无窗口级 API；
+     Android 15+ 的 `setBlurBehindParameters`（需 window flag，覆盖面窄）
+- **建议**：先做方案 1 止血（一次提交），方案 2/3 作为增强另议。
 
-### 选中书「缩回书架深处」，未浮出并遮挡邻书
-**状态**：✅ 已修复（commit `23d7c69`）
+### P1 · 品牌一致性（收尾）
 
-三个原因叠加，逐条修复：
+#### 代码注释 / 颜色变量名仍写 KK
+- **位置**：`values/colors.xml:5-8`（`kk_primary` / `kk_primary_dark` /
+  `kk_accent` / `kk_accent_night`，**13 处引用**）
+- **现状**：可见文案与注释已全部清零（`KK读书` 在 `app/src/main` 下 0 命中）；
+  仅剩这组颜色变量名。
+- **决策待定**：改名成本 13 处引用 + 主题 JSON 里的引用需同步，纯维护性收益低。
+  要么一次改净（含 `themeConfig.json`），要么明确保留并在此记录不再处理。
 
-| 原因 | 原实现 | 修复 |
-|---|---|---|
-| **a. 上浮量被压到几乎为零** | `min(书脊*0.42, baseline - 书脊*1.14 - 4dp)` → 实际仅 ~27dp，书脊却 ~190dp | 书脊上限 `0.78→0.70`，上浮目标改为书脊的 **50%**，只受「书顶不越控件顶」约束。实测 **26.9dp → 61.2dp（2.3 倍）** |
-| **b. 夹紧约束语义错误** | `maxLiftEdge = baseline - 4dp`，等于限制上提量「不高于书架线」，直接禁止浮出 | 删除该约束，只保留「不超出控件顶部（留 2dp）」 |
-| **c. 绘制顺序遮挡错误** | 从左到右绘制，右邻书压住中间那本 | 改为「其余书从左到右，**选中书最后画**」 |
-| **d. 横移与上提耦合** | 共用 `pull`，上浮变大后整排弧形排列被拉歪 | 解耦：`shiftX = pull * 0.30` |
+### P2 · 交互与体验
 
-- 安全校验：书顶位置 = **2dp**（不越界）；书底到虚线框 **21dp**。
-- 验证：CI Build 通过（5m01s）。
+*(书架热区重叠、订阅说明措辞两项已解决，见下方「已解决」)*
 
-### versionCode 恒为 20000，新版本无法覆盖安装
-**状态**：✅ 已修复（commit `6241037`）
-
-- 原状：`versionCode = 20000 + gitCommits`，而 `gitCommits` 取
-  `git rev-list HEAD --count`。源码无 `.git` 时返回空串回退 0，
-  versionCode 永远停在 20000 → `INSTALL_FAILED_VERSION_DOWNGRADE`。
-- 修复：`versionCode = 300_000 + yyMMddHH`（如 26402623），
-  单调递增、不依赖 git。
-- 实测：APK 中 `versionCode='26402623'`。
-
-### 构建过慢（全量 11.5 分钟）
-**状态**：✅ 已优化
-
-- 措施：Gradle 缓存迁至 `D:\gradle-home`（与项目同盘），
-  开启 `parallel` / `caching` / `configureondemand` /
-  `kotlin.incremental` / **`ksp.incremental`**。
-- 实测：全量 11.5 分钟 → 冷启 2.3 分钟 → **增量 19.7 秒**。
-
-### CI 无法运行（连续 4 个原因）
-**状态**：✅ 已修复（CI 现已通过）
-
-1. `gradlew` 丢可执行位（Windows 提交不保留 mode）→ exit 126
-2. KSP 版本未与 Kotlin 配对（`2.3.4` vs `kotlin 2.3.10`）
-3. `google{}` 的 `includeGroupByRegex("com\\.google.*")` 锁死 KSP 插件
-4. **阿里云镜像返回 502，Gradle 遇 5xx 会中止尝试后续仓库**
-
-修复：官方源前置、镜像降为兜底。详见 `docs/BUILD.md`。
-
-### 仓库堆积 25 个危险 dependabot PR
-**状态**：✅ 已处理
-
-- 全部关闭并删分支，`.github/dependabot.yml` 收紧：
-  只收补丁级、并发上限 3、AGP/Gradle/Kotlin/KSP/jsoup/Rhino/Room/Firebase 锁定。
-
----
-
-## 二、待处理
-
-### P0
-
-*(暂无)*
-
-### P1 · 品牌一致性
-
-#### ~~桌面图标仍是「KK」字样~~
-**✅ 已解决**（commit `4b686ac`，随 v1.0.1 发布）。新图标：翻开的书 + 三道上升风纹 +
-金色书签，adaptive 三层 + 五档密度，内容经自动测量收进 66dp 安全区（余量 8.6px）。
-
-#### 关于页 / 分享文案写死「KK读书」
-- **位置**（`res/values/strings.xml`）：
-  - `about_description_sigma`：「KK读书 是「阅读Sigma…」
-  - `app_share_description_sigma`：「KK读书（自建版）…」
-  - `fork_info_desc`：「KK读书 相对上游 legado-E…」
-  - `values-zh/strings.xml:6` `receiving_shared_label`：「KK读书·搜索」
-- **连带 bug**：`AboutActivity.kt:35` 用 `getString(R.string.app_name)`
-  （=轻风阅读）去摘要里 `indexOf` 高亮品牌词，但正文里没有这四个字，
-  **高亮永远不生效**。改文案后自动恢复，无需改代码。
-
-#### 代码注释 / 颜色名仍写 KK
-- **位置**：`mipmap-anydpi-v26/ic_launcher.xml:2` 注释、
-  `values/colors.xml:5-8`（`kk_primary` / `kk_accent` 等）、
-  `strings.xml:4` 注释、`AboutActivity.kt:33` 注释
-- **影响**：不影响运行，纯维护性。颜色名改动成本高（多处引用），
-  建议只改注释。
-
-### P2 · 交互细节
-
-#### ~~立体书架底部：翻页热区与虚线区重叠~~
-**✅ 已解决**（随 v1.0.2 发布）。核实发现右下角并未绘制「‹ ›」箭头
-（`drawCaptions` 只画「全部图书 · N 本」），该翻页热区是隐形热区且与
-虚线框重叠约 8dp。已整段删除：底部虚线区点击 = 打开当前书，
-翻书一律用横向拖动或点其它书脊，交互语义自洽。
-
-#### ~~订阅页使用说明与实际不符~~
-**✅ 已解决**（随 v1.0.2 发布）。`rss_guide_body` 重写为与实际交互一致：
-- 新增入口：订阅页右上角菜单 → 订阅源管理 → 右上角菜单「添加订阅源」
-  （`menu_add`），导入走「导入本地 / 导入在线 / 扫码导入」。
-- 条目操作：开关启用/停用、「✎」编辑、「⋮」置顶/置底/删除
-  （管理页条目**没有长按菜单**，原文案「长按可编辑」亦不符，一并修正）。
-- 排查：RSS 无「校验」（那是书源功能），改为「编辑订阅源时点『调试』
-  逐步查看抓取过程」（`RssSourceDebugActivity`）。
-- 已核实保留：`group:` 前缀搜索（`RssFragment.kt:191`）、星标收藏。
+#### 翻页热区删除后的替代手势未验证
+- 删除隐形热区后，翻书只剩「横向拖动」和「点其它书脊」。
+- 需在真机确认：单击书脊区域切换是否顺手，虚线区是否会被误认为可翻页。
 
 ### P3 · 功能增强（可选）
 
 #### 内置「轻小说文库」书源 `searchUrl` 为空
-- **现象**：搜书时会抛「搜索url不能为空」（`WebBook.kt:57`），
-  每次搜索多一条错误项。
-- **背景**：站点对未登录访客关闭了列表/搜索接口，因此这条源
-  目前只能打开已知书页链接（详情/目录/正文正常）。
-- **选项**：① 配置登录信息恢复站内搜索；② 从搜索范围过滤掉空 `searchUrl` 的源。
+- **现象**：搜书时抛「搜索url不能为空」（`WebBook.kt:57`），每次搜索多一条错误项。
+- **背景**：站点对未登录访客关闭了列表/搜索接口，这条源目前只能打开已知书页链接
+  （详情/目录/正文正常）。
+- **选项**：① 配置登录信息恢复站内搜索；② 从搜索范围过滤掉空 `searchUrl` 的源（改动小）。
 
 #### 封面生成版式改良
 - **状态**：设计已完成，见 `docs/DESIGN/03-封面生成设计.md`，未实施。
-- **规划**：横排自适应 + 边框纹理 + 8 种图案 + 20 个占位作者。
+- **规划**：横排自适应 + 边框纹理 + 8 种图案（game-icons.net CC BY 3.0 + Lucide ISC，
+  需转 VectorDrawable 并附 `assets/cover_motifs/LICENSE.md`）+ 20 个占位作者。
 - **已决策**：不提取副标题、占位作者不加提示、保留旧竖排版式。
 
 #### 玻璃拟态覆盖范围
-- **现状**：只做了阅读菜单（`ReadMenu.kt`）。
+- **现状**：只做了阅读菜单（`ReadMenu.kt:212/218`）。
 - **待定**：是否铺到书架 / 发现页 / 对话框（需动大量布局）。
+- **依赖**：建议先解决 P0 的子树模糊 bug，再谈扩展。
+
+### P4 · 工程与环境（未提交的本地改动）
+
+#### web 模块 pnpm 12 构建白名单（本地待提交）
+- **背景**：pnpm 10+ 默认拒绝依赖运行 install 脚本，`ERR_PNPM_IGNORED_BUILDS`
+  导致 esbuild 装不上、网页版起不来。已在 `modules/web/pnpm-workspace.yaml`
+  用新格式 `allowBuilds:` 修复（注意 pnpm 10 的 `onlyBuiltDependencies` 写法已失效）。
+- **待办**：
+  1. `package.json` 里我加的 `"pnpm": {"onlyBuiltDependencies": [...]}` 字段
+     **对 pnpm 12 无效**，应删除（保留 workspace 文件即可）。
+  2. 决定 `pnpm-lock.yaml`（118.9 KB，此前未入库）是否提交——建议提交，
+     保证可复现构建。
+  3. 提交后在 README/BUILD.md 补一句 web 模块需要 pnpm ≥ 10 及 workspace 文件的作用。
+
+### P5 · 发版
+
+#### v1.0.3（M3 取色引擎）待发布
+- `b654642`（M3 引擎）+ `8937d05`（dependabot）已在 main 且 CI 通过，尚未发版。
+- 建议连同 P0 玻璃修复、P4 web 环境一起打包成 v1.0.3，一条 tag 触发 CI 自动签名发布。
+- ⚠️ 发版前确认密钥库备份（见 `docs/BUILD.md`「密钥库备份」）。
+
+---
+
+## 二、已解决
+
+### 立体书架底部虚线区与书底距离偏近
+✅ commit `23d7c69`：`baseline` 由 `shelfBottom - 6dp` 改为 `- 13dp`，间距 14dp → 21dp。
+
+### 选中书「缩回书架深处」，未浮出并遮挡邻书
+✅ commit `23d7c69`，四个叠加原因全部修复：
+
+| 原因 | 原实现 | 修复 |
+|---|---|---|
+| 上浮量被压到几乎为零 | `min(书脊*0.42, baseline-书脊*1.14-4dp)` → 仅 ~27dp | 书脊上限 0.78→0.70，上浮目标 50%，实测 26.9dp→61.2dp（2.3 倍） |
+| 夹紧约束语义错误 | `maxLiftEdge = baseline-4dp` 禁止浮出书架 | 只保留「不超出控件顶（留 2dp）」 |
+| 绘制顺序遮挡错误 | 从左到右，右邻压住中间 | 选中书最后画 |
+| 横移与上提耦合 | 共用 `pull` | `shiftX = pull*0.30` |
+
+### versionCode 恒为 20000，新版本无法覆盖安装
+✅ commit `6241037`：改 `300_000 + yyMMddHH`，不依赖 git。实测 APK `versionCode=26402623`。
+
+### 构建过慢（全量 11.5 分钟）
+✅ Gradle 缓存迁至 `D:\gradle-home`（与项目同盘）+ 开 parallel/caching/incremental。
+全量 11.5min → 冷启 2.3min → **增量 19.7s**。
+
+### CI 无法运行（4 个独立原因）
+✅ 已修复并连续通过：
+1. `gradlew` 丢可执行位（Windows 不保留 mode）→ exit 126
+2. KSP 版本未与 Kotlin 配对（2.3.4 vs 2.3.10）
+3. `google{}` 的 `includeGroupByRegex("com\\.google.*")` 锁死 KSP 插件
+4. 阿里云镜像返回 502，Gradle 遇 5xx 中止尝试后续仓库
+详见 `docs/BUILD.md`。
+
+### 仓库堆积 dependabot PR（两轮）
+✅ 第一轮 25 个危险大版本 PR 已关闭；第二轮（2026-11-01 又冒 5 个，其中 3 个违反
+「只收补丁」）暴露通配 ignore 在 version catalog 别名匹配下失效，
+最终 commit `8937d05` 关闭全部自动 PR（`open-pull-requests-limit: 0`），依赖升级改人工验证。
+
+### 桌面图标仍是「KK」字样
+✅ commit `4b686ac`（v1.0.1）：新图标「翻开的书 + 三道上升风纹 + 金色书签」，
+adaptive 三层 + 五档密度，内容自动测量收进 66dp 安全区（余量 8.6px），已从 APK 提取验证。
+
+### 关于页 / 分享文案写死「KK读书」
+✅ commit `4b686ac`（v1.0.1）：四处文案改为「轻风阅读」，连带修复 AboutActivity
+品牌词高亮失效（`indexOf(app_name)` 现在能命中）。`app/src/main` 下 `KK读书` 已 0 命中。
+
+### 立体书架底部：翻页热区与虚线区重叠
+✅ v1.0.2（commit `8073732`）：右下角本未绘制「‹ ›」箭头，隐形热区与虚线框重叠 8dp。
+已删除该热区，底部虚线区点击 = 打开当前书，翻书用拖动/点书脊。
+
+### 订阅页使用说明与实际不符
+✅ v1.0.2（commit `8073732`）：`rss_guide_body` 重写为与实际一致——
+新增入口（管理页右上角菜单「添加订阅源」+ 三种导入）、
+条目操作（开关/✎编辑/⋮置顶置底删除，无长按菜单）、
+排查走编辑页「调试」（RSS 无校验）。保留已核实的 `group:` 过滤与星标收藏。
+
+### 莫奈取色升级为 Material You / M3 官方引擎
+✅ commit `b654642`（CI 通过，未发版）：引入 material-color-utilities
+（@ `4dbd965df6`，Apache-2.0，19 类）到 `lib/theme/m3/`；`Monet.kt` 改为官方流水线
+（量化→打分→HCT→Scheme 27 token），token 映射进现有 ThemeStore 链路，
+公开 API 签名不变；新增 `M3ColorTest` 7 项。方案与 Phase 2 路线见
+`docs/DESIGN/04-M3动态取色引擎.md`。
 
 ---
 
 ## 三、已核实无误（不需要动）
 
 - 书源实测可用：`/book/{aid}.htm`、`/novel/.../index.htm`、章节页均 200
-- 内置书源导入链路完整：`App.kt:92` → `DefaultData.upVersion()` →
-  `importBuiltinWenku8Source()`
-- 权限名已同步为 `io.qingfeng.reader.READ_WRITE`
+- 内置书源导入链路完整：`App.kt` → `DefaultData.upVersion()` → `importBuiltinWenku8Source()`
+- 权限名已同步 `io.qingfeng.reader.READ_WRITE`
 - 书城删除后无任何悬空引用
 - 莫奈取色走 `recreateActivities()` 重建，配色能生效
 - 订阅说明面板折叠状态持久化正确
 - Edge 协议算法与独立实现逐字符一致（`EdgeProtocolTest` 3 项）
-- 书源规则在真实页面上命中（`Wenku8SourceRuleTest` 4 项）
+- 书源规则在真实页面命中（`Wenku8SourceRuleTest` 4 项）
+- M3 引擎 tone 档位/明暗差异/色相保留/量化打分/container 层级（`M3ColorTest` 7 项）
+- 网页版 dev server 可运行（vite 5.4.21，端口 8080，HTTP 200）
+
+## 四、环境备忘
+
+- **网络代理**：git 全局配的 `127.0.0.1:10808` 已失效；当前可用 **FlClash `127.0.0.1:7890`**。
+  推送：`git -c http.proxy=http://127.0.0.1:7890 push origin main`；
+  gh CLI：`$env:HTTPS_PROXY="http://127.0.0.1:7890"`。
+- **构建**：JDK 17 / Gradle 8.14.3（`D:\gradle-home`）/ Android SDK 36，
+  详见 `docs/BUILD.md`。
+- **签名**：keystore 在 `C:\Users\01\WorkBuddy\...\keystore\lanying-reader.jks`，
+  GitHub Secrets 已配 4 项；⚠️ 务必离线备份密钥库。

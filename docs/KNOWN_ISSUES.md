@@ -22,13 +22,7 @@
 
 ### P1 · 品牌一致性（收尾）
 
-#### 代码注释 / 颜色变量名仍写 KK
-- **位置**：`values/colors.xml:5-8`（`kk_primary` / `kk_primary_dark` /
-  `kk_accent` / `kk_accent_night`，**13 处引用**）
-- **现状**：可见文案与注释已全部清零（`KK读书` 在 `app/src/main` 下 0 命中）；
-  仅剩这组颜色变量名。
-- **决策待定**：改名成本 13 处引用 + 主题 JSON 里的引用需同步，纯维护性收益低。
-  要么一次改净（含 `themeConfig.json`），要么明确保留并在此记录不再处理。
+*(暂无)*
 
 ### P2 · 交互与体验
 
@@ -131,6 +125,12 @@ adaptive 三层 + 五档密度，内容自动测量收进 66dp 安全区（余�
 ✅ commit `2cceb98`（v1.0.3）：`pnpm-workspace.yaml` 用 `allowBuilds:` map 修复
 `ERR_PNPM_IGNORED_BUILDS`（pnpm 10 的 `onlyBuiltDependencies` 写法在 12 已失效）；
 package.json 无效字段已删（回到原状）；pnpm-lock.yaml 入库保证可复现。
+
+### 代码注释 / 颜色变量名仍写 KK
+✅ 已解决：`kk_primary`/`kk_primary_dark`/`kk_accent`/`kk_accent_night`
+改名为 `qf_*`（colors.xml 定义 + ThemeConfig.kt 6 处引用同步，
+themeConfig.json 用的是色值不是资源名、无需改动）。
+至此「KK」在全部代码与资源中 0 残留（历史 commit 记录除外）。
 
 ### 莫奈取色升级为 Material You / M3 官方引擎
 ✅ commit `b654642`（CI 通过，未发版）：引入 material-color-utilities

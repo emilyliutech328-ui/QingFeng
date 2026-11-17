@@ -80,6 +80,10 @@ class SearchModel(private val scope: CoroutineScope, private val callBack: CallB
             flow {
                 for (bs in bookSourceParts) {
                     bs.getBookSource()?.let {
+                        // 无搜索接口的源（如内置「轻小说文库」：站点对访客关闭了
+                        // 搜索页）直接跳过。否则每个关键词都抛一次
+                        // 「搜索url不能为空」，在日志里堆一条无意义错误项。
+                        if (it.searchUrl.isNullOrBlank()) return@let
                         emit(it)
                     }
                     workingState.first { it }

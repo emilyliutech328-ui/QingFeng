@@ -34,12 +34,6 @@
 
 ### P3 · 功能增强（可选）
 
-#### 内置「轻小说文库」书源 `searchUrl` 为空
-- **现象**：搜书时抛「搜索url不能为空」（`WebBook.kt:57`），每次搜索多一条错误项。
-- **背景**：站点对未登录访客关闭了列表/搜索接口，这条源目前只能打开已知书页链接
-  （详情/目录/正文正常）。
-- **选项**：① 配置登录信息恢复站内搜索；② 从搜索范围过滤掉空 `searchUrl` 的源（改动小）。
-
 #### 封面生成版式改良
 - **状态**：设计已完成，见 `docs/DESIGN/03-封面生成设计.md`，未实施。
 - **规划**：横排自适应 + 边框纹理 + 8 种图案（game-icons.net CC BY 3.0 + Lucide ISC，
@@ -131,6 +125,12 @@ package.json 无效字段已删（回到原状）；pnpm-lock.yaml 入库保证�
 改名为 `qf_*`（colors.xml 定义 + ThemeConfig.kt 6 处引用同步，
 themeConfig.json 用的是色值不是资源名、无需改动）。
 至此「KK」在全部代码与资源中 0 残留（历史 commit 记录除外）。
+
+### 内置「轻小说文库」书源 searchUrl 为空导致搜书报错
+✅ 已解决：`SearchModel.startSearch()` 的源发射处跳过 `searchUrl` 为空的源，
+不再每个关键词堆一条「搜索url不能为空」。书源校验与单源自搜
+（`SourceVerificationService` / `BookSourceDebug`）保留报错——那是故意测试
+搜索接口，必须如实报告不可用。
 
 ### 莫奈取色升级为 Material You / M3 官方引擎
 ✅ commit `b654642`（CI 通过，未发版）：引入 material-color-utilities
